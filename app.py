@@ -25,7 +25,7 @@ import Visualization
 
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 current_ids = ['spotify:playlist:28mI8s2FBTx0pzWfQ7dTwA','7s5PGUSUudnrdcueQuxWW0','spotify:playlist:6SeTiLgmsdVbQ4MjOnIJb6']
-data = pd.DataFrame()
+#data = pd.DataFrame()
 
 # the style arguments for the sidebar. We use position:fixed and a fixed width
 SIDEBAR_STYLE = {
@@ -41,16 +41,16 @@ SIDEBAR_STYLE = {
 # the styles for the main content position it to the right of the sidebar and
 # add some padding.
 CONTENT_STYLE = {
-    "margin-left": "18rem",
-    "margin-right": "2rem",
-    "padding": "2rem 1rem",
+    "padding-left": "18rem",
+    #"margin-right": "2rem",
+    #"padding": "2rem 1rem",
+    #'background-color':'red'
 }
 
 checklist = html.Div([
-    html.Div('Dash To-Do list'),
-    dcc.Input(id="new-item"),
-    html.Button("Add", id="add"),
-    html.Button("Clear Done", id="clear-done"),
+    dbc.Input(id="new-item",placeholder='Enter Playlist ID', type = 'text'),
+    html.Div([dbc.Button("Add", id="add",style = {'margin':'auto'}),
+    dbc.Button("Remove", id="clear-done", style = {'margin':'auto'}) ],style = {'display':'flex','padding-top':'10px','padding-bottom':'5px'}),
     html.Div(id="list-container"),
     html.Div(id="totals")
 ])
@@ -61,13 +61,10 @@ controls = dbc.Card(
             [
                 html.H4("Enter Playlist IDs",className='display-9'),
                 html.Hr(),
-                dbc.Input(id = 'pl_id_1',placeholder='Enter Playlist ID', type = 'text'),
-                dbc.Input(id = 'pl_id_2',placeholder='Enter Playlist ID', type = 'text'),
-                dbc.Input(id='pl_id_3', placeholder='Enter Playlist ID', type='text'),
-                dbc.Button("Submit",id = 'submit',block = True)
+                checklist
             ]
         ),
-        # checklist,
+        #checklist,
         html.Hr(),
         html.P(
             "To find a playlist ID, click on the three dots and select 'Copy Spotify URI'",
@@ -85,43 +82,78 @@ sidebar = html.Div(
     style=SIDEBAR_STYLE,
 )
 
-content = html.Div([dcc.Graph(id="playlist_graph")], style = CONTENT_STYLE)
+row2_form= dbc.FormGroup(
+    [
+        dbc.Label("Email", html_for="example-email-row", width=2),
+        dbc.Col(
+            dbc.Input(
+                type="email", id="example-email-row", placeholder="Enter email"
+            ),
+            width=10,
+        ),
+    ],
+    row=True,
+)
+
+row2 = dbc.Row(dbc.Col([html.H3("Generate a New Playlist"),row2_form],width = 3))
+
+content = html.Div([dbc.Row([dbc.Col(dcc.Graph(id="playlist_graph"),width = 6,style = {'background-color':'red'}),dbc.Col(dcc.Graph(id = "playlist_graph2"),width = 6)],style = {'background-color':'blue'}),row2], style = CONTENT_STYLE)
 #content = html.Div(id = 'page-content', style = CONTENT_STYLE)
 
-app.layout = html.Div([sidebar,content])
+data = html.Div(id='intermediate-value', style={'display': 'none'})
+
+app.layout = html.Div([sidebar,content,data])
 
 
-@app.callback(
-    Output("playlist_graph", "figure"), [Input("pl_id_1", "value"),Input("pl_id_2", "value"),Input("pl_id_3", "value"),Input("submit", "n_clicks")]
-)
-def make_graph(pl_id1, pl_id2, pl_id3, submit):
-    global data
-    global current_ids
-    print(pl_id1,pl_id2,pl_id3)
-    valid_data = [x for x in [pl_id1,pl_id2,pl_id3] if (x is not None and x != '')]
-    print("Valid data"+ str(valid_data))
-    if current_ids != valid_data and len(valid_data) > 0:
-        current_ids = valid_data
-        data = PlaylistRetriever.get_user_playlists(current_ids)
-    elif data.empty:
+
+def make_graph(items):
+    #global data
+    # print("Valid data"+ str(valid_data))
+    # print("Current ids" + str(current_ids))
+    filter = [x for x in items if (x is not None and x != "")]
+    if len(filter) > 0:
+        data = PlaylistRetriever.get_user_playlists(filter)
+    else:
         data = PlaylistRetriever.get_user_playlists(current_ids)
     print("got here")
-    return Visualization.make_radar_chart(data)
+
+    fig = Visualization.make_radar_chart(data)
+    fig.update_layout(
+        margin=dict(l=100, r=0, t=0, b=0),
+        paper_bgcolor="LightSteelBlue"
+    )
+    fig.update_layout(legend=dict(
+        yanchor="top",
+        #y=0.99,
+        xanchor="left",
+        #x=0.01
+    ))
+    return fig
+
 
 style_todo = {"display": "inline", "margin": "10px"}
 style_done = {"textDecoration": "line-through", "color": "#888"}
 style_done.update(style_todo)
 
+@app.callback(Input("list-container", "children"),Output('intermediate-value','children')
+)
+def get_data(children):
+    pass
+
+
 
 @app.callback(
     [
         Output("list-container", "children"),
-        Output("new-item", "value")
+        Output("new-item", "value"),
+        Output("playlist_graph", "figure"),
+        Output("playlist_graph2","figure"),
+
     ],
     [
         Input("add", "n_clicks"),
         Input("new-item", "n_submit"),
-        Input("clear-done", "n_clicks")
+        Input("clear-done", "n_clicks"),
     ],
     [
         State("new-item", "value"),
@@ -130,6 +162,8 @@ style_done.update(style_todo)
     ]
 )
 def edit_list(add, add2, clear, new_item, items, items_done):
+    print(add,add2,clear)
+    print(new_item,items,items_done)
     triggered = [t["prop_id"] for t in dash.callback_context.triggered]
     adding = len([1 for i in triggered if i in ("add.n_clicks", "new-item.n_submit")])
     clearing = len([1 for i in triggered if i == "clear-done.n_clicks"])
@@ -137,8 +171,10 @@ def edit_list(add, add2, clear, new_item, items, items_done):
         (text, done) for text, done in zip(items, items_done)
         if not (clearing and done)
     ]
+    print(adding)
     if adding:
         new_spec.append((new_item, []))
+    print("new spec:" + str(new_spec))
     new_list = [
         html.Div([
             dcc.Checklist(
@@ -152,7 +188,10 @@ def edit_list(add, add2, clear, new_item, items, items_done):
         ], style={"clear": "both"})
         for i, (text, done) in enumerate(new_spec)
     ]
-    return [new_list, "" if adding else new_item]
+    graph = make_graph([x[0] for x in new_spec])
+    y=  [new_list, "" if adding else new_item,graph,graph,html.Div()]
+    print(y)
+    return y
 
 
 @app.callback(
