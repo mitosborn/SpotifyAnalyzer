@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-
+import plotly.express as px
 def avg_normalize_data(dataframe, cols):
     cols_to_keep = cols + ['playlist']
 #     avged_data = [df[cols_to_keep].groupby('playlist').mean() for df in data_arr]
@@ -38,3 +38,14 @@ def make_radar_chart(data_arr, cols = ['danceability', 'energy', 'speechiness',
     )
 
     return fig
+
+def make_bar_graph(df):
+    data = df[['year','playlist']].copy()
+    data.rename(columns={'year': 'decade'}, inplace=True)
+    data['count'] = 1
+    data['decade'] = data['decade'].apply(lambda x: str(x)[:3] + '0s')
+    data = data.groupby(['playlist','decade']).sum().reset_index()
+    to_return = data.pivot(index = 'decade', columns = 'playlist',values = 'count')
+    to_return = to_return.fillna(0).astype(int)
+    to_return.reset_index(inplace = True)
+    return px.bar(to_return,x='decade',y=to_return.columns[1:],barmode = 'group',labels={'decade':'Decade','value':'Frequency'})

@@ -30,6 +30,7 @@ def __get_track_info(playlist_id, sp):
     dataframe['year'] = dataframe['album'].apply(lambda x: x['release_date'][:4])
     dataframe['album'] = dataframe['album'].apply(lambda x: x['name'])
     dataframe['artists'] = dataframe['artists'].apply(lambda x: list(map(lambda y: y['name'], x)))
+    dataframe['playlist_id'] = playlist_id
 
     return dataframe
 
@@ -46,6 +47,8 @@ def get_user_playlists(playlist_ids):
         info = __get_track_info(playlist_id, sp)
 
         # Create df from audio features and popularity of songs
+
+        #Issue: Need to account for duplicate names in the playlist section (Add a 1, 2, ...)
         merged_df = pd.merge(__get_audio_features(info['id'], sp), info, on='id')
 
         # Append to master_df

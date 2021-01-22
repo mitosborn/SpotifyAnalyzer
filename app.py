@@ -102,15 +102,15 @@ content = html.Div([dbc.Row([dbc.Col(dcc.Graph(id="playlist_graph"),width = 6,st
 
 data = dcc.Store(id='playlist_data')
 playlist_ids = dcc.Store(id='playlist_ids')
+checklist_contents = dcc.Store(id='checklist')
 app.layout = html.Div([sidebar,content,data,playlist_ids])
 
 
 
-def make_graph(items, data):
+def get_radar_graph(data):
     #global data
     # print("Valid data"+ str(valid_data))
     # print("Current ids" + str(current_ids))
-    filter = [x for x in items if (x is not None and x != "")]
     # if len(filter) > 0:
     #     data = PlaylistRetriever.get_user_playlists(filter)
     # else:
@@ -131,13 +131,14 @@ def make_graph(items, data):
     return fig
 
 
+
 style_todo = {"display": "inline", "margin": "10px"}
 style_done = {"textDecoration": "line-through", "color": "#888"}
 style_done.update(style_todo)
 
-@app.callback(Output('playlist_data','data'),Input('playlist_ids', 'data'))
+@app.callback(Output('playlist_data','data'),Input('checklist', 'data'))
 def get_data(id_tup):
-    new_ids = [x[0] for x in id_tup[0]]
+    new_ids = id_tup[2]
     print("Inside get data")
     print(new_ids)
     if new_ids:
@@ -148,7 +149,7 @@ def get_data(id_tup):
     return data.reset_index().to_json()
 
 @app.callback(
-        Output('playlist_ids','data'),
+        Output('checklist','data'),
     [
         Input("add", "n_clicks"),
         Input("new-item", "n_submit"),
@@ -161,6 +162,7 @@ def get_data(id_tup):
     ]
 )
 def get_list_content(add, add2, clear, new_item, items, items_done):
+    #This needs to add to id list (new_item)
     print(add, add2, clear)
     print(new_item, items, items_done)
     triggered = [t["prop_id"] for t in dash.callback_context.triggered]
@@ -170,11 +172,34 @@ def get_list_content(add, add2, clear, new_item, items, items_done):
         (text, done) for text, done in zip(items, items_done)
         if not (clearing and done)
     ]
+    # # If both clearing and done on this index, remove this id]
+    # current_ids = [id for id, done in zip(ids, items_done) if not (clearing and done)]
+
     print(adding)
     if adding:
         new_spec.append((new_item, []))
+        current_ids.append(new_item)
     print("new spec:" + str(new_spec))
+    #Tuple (names of playlists, new_item,playlist ID list)
     return [new_spec, "" if adding else new_item]
+
+"""
+Creates two mappings: playlist_id to playlist name and the reverse
+
+Input: dataframe containing playlist data
+Output: Tuple containing two dictionaries
+"""
+@app.callback(Output('playlist_id_mappings','data'),Input('playlist_data','data'),
+              state = [State(component_id='',component_property='')])
+def store_playlist_id_mapping(df):
+    return pd.Series(df['playlist_id'].values, index=df['playlist']).to_dict(), pd.Series(df['playlist'].values, index=df['playlist_id']).to_dict()
+
+
+
+
+def create_playlist_id_mapping(dataframe):
+    dictionary = {row['playlist_id']: row['playlist'] for index, row in dataframe.iterrows()}
+    return dictionary
 
 
 @app.callback(
@@ -185,23 +210,16 @@ def get_list_content(add, add2, clear, new_item, items, items_done):
         Output("playlist_graph2", "figure")
     ],
     [
-        # Input("add", "n_clicks"),
-        # Input("new-item", "n_submit"),
-        # Input("clear-done", "n_clicks"),
         Input('playlist_data','data'),
-        Input('playlist_ids','data')
+        Input('checklist','data'),
+        Input('playlist_id_mappings','data')
     ]
-    # ,
-    # [
-    #     State("new-item", "value"),
-    #     State({"index": ALL}, "children"),
-    #     State({"index": ALL, "type": "done"}, "value")
-    # ]
 )
-def edit_list(dataframe, playlist_ids):
+def edit_list(dataframe, playlist_ids,mapping):
     dataframe = pd.read_json(dataframe)
     adding  = playlist_ids[1]
     new_spec = playlist_ids[0]
+    pl_name_dict = mapping[1]
     new_list = [
         html.Div([
             dcc.Checklist(
@@ -211,12 +229,13 @@ def edit_list(dataframe, playlist_ids):
                 style={"display": "inline"},
                 labelStyle={"display": "inline"}
             ),
-            html.Div(text, id={"index": i}, style=style_done if done else style_todo)
+            html.Div((lambda x: pl_name_dict[x] if x in pl_name_dict.keys() else x )(pl_name_dict[text]), id={"index": i}, style=style_done if done else style_todo)
         ], style={"clear": "both"})
         for i, (text, done) in enumerate(new_spec)
     ]
-    graph = make_graph(new_spec,dataframe)
-    y=  [new_list, adding, graph, graph]
+    radar_graph = get_radar_graph(dataframe)
+    bar_graph = Visualization.make_bar_graph(dataframe)
+    y=  [new_list, adding, radar_graph, bar_graph]
     print(y)
     return y
 
