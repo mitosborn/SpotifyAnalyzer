@@ -102,8 +102,9 @@ content = html.Div([dbc.Row([dbc.Col(dcc.Graph(id="playlist_graph"),width = 6,st
 
 data = dcc.Store(id='playlist_data')
 playlist_ids = dcc.Store(id='playlist_ids')
+playlist_ids_mappings = dcc.Store(id='playlist_id_mappings')
 checklist_contents = dcc.Store(id='checklist')
-app.layout = html.Div([sidebar,content,data,playlist_ids])
+app.layout = html.Div([sidebar,content,data,playlist_ids,playlist_ids_mappings,checklist_contents])
 
 
 
@@ -136,13 +137,27 @@ style_todo = {"display": "inline", "margin": "10px"}
 style_done = {"textDecoration": "line-through", "color": "#888"}
 style_done.update(style_todo)
 
-@app.callback(Output('playlist_data','data'),Input('checklist', 'data'))
-def get_data(id_tup):
-    new_ids = id_tup[2]
+@app.callback(Output('playlist_data','data'),Input('checklist', 'data'),State('playlist_id_mappings','data'))
+def get_data(id_tup,mapping):
+    print(mapping)
+    #map_back = mapping[1]
+    #new_ids = id_tup[2]
     print("Inside get data")
-    print(new_ids)
-    if new_ids:
-        data = PlaylistRetriever.get_user_playlists(new_ids)
+    print(id_tup)
+    #print(new_ids)
+    #If the user has entered an id
+    if len(id_tup[0]) != 0:
+        #Our data is stored in the format [data_list, boolean], where the boolean is used by our checklist to manage data
+        #Each item in data_list is stored as a tuple (id, boolean), where the boolean indicates whether to remove the item
+        #We only need the id, which we extract using list comprehension
+        ids = [x[0] for x in id_tup[0]]
+
+        #If the mapping is not None, some of the inputted ids will be playlist names and not Spotify ids.
+        #Thus, we must convert them back so that our API can retrieve the data.
+        if mapping[0]:
+            ids = [mapping[0][x] if x in mapping[0].keys() else x for x in ids]
+        data = PlaylistRetriever.get_user_playlists(ids)
+    #The list is empty; display the default data
     else:
         data = PlaylistRetriever.get_user_playlists(current_ids)
     #print(data)
@@ -178,10 +193,10 @@ def get_list_content(add, add2, clear, new_item, items, items_done):
     print(adding)
     if adding:
         new_spec.append((new_item, []))
-        current_ids.append(new_item)
+        #current_ids.append(new_item)
     print("new spec:" + str(new_spec))
     #Tuple (names of playlists, new_item,playlist ID list)
-    return [new_spec, "" if adding else new_item]
+    return new_spec, "" if adding else new_item
 
 """
 Creates two mappings: playlist_id to playlist name and the reverse
@@ -190,8 +205,12 @@ Input: dataframe containing playlist data
 Output: Tuple containing two dictionaries
 """
 @app.callback(Output('playlist_id_mappings','data'),Input('playlist_data','data'),
-              state = [State(component_id='',component_property='')])
-def store_playlist_id_mapping(df):
+              state = [State(component_id='playlist_data',component_property='data')])
+def store_playlist_id_mapping(df, df2):
+    print(df, df2)
+    if df is None:
+        return dict(), dict()
+    df = pd.read_json(df)
     return pd.Series(df['playlist_id'].values, index=df['playlist']).to_dict(), pd.Series(df['playlist'].values, index=df['playlist_id']).to_dict()
 
 
@@ -217,6 +236,8 @@ def create_playlist_id_mapping(dataframe):
 )
 def edit_list(dataframe, playlist_ids,mapping):
     dataframe = pd.read_json(dataframe)
+    print('playlist_ids'+str(playlist_ids))
+    print("Pl_name_Dict" + str(mapping))
     adding  = playlist_ids[1]
     new_spec = playlist_ids[0]
     pl_name_dict = mapping[1]
@@ -229,14 +250,14 @@ def edit_list(dataframe, playlist_ids,mapping):
                 style={"display": "inline"},
                 labelStyle={"display": "inline"}
             ),
-            html.Div((lambda x: pl_name_dict[x] if x in pl_name_dict.keys() else x )(pl_name_dict[text]), id={"index": i}, style=style_done if done else style_todo)
+            html.Div((lambda x: pl_name_dict[x] if x in pl_name_dict.keys() else x)(text), id={"index": i}, style=style_done if done else style_todo)
         ], style={"clear": "both"})
         for i, (text, done) in enumerate(new_spec)
     ]
     radar_graph = get_radar_graph(dataframe)
     bar_graph = Visualization.make_bar_graph(dataframe)
     y=  [new_list, adding, radar_graph, bar_graph]
-    print(y)
+    #print(y)
     return y
 
 
