@@ -1,17 +1,3 @@
-# # import os
-# #
-# # import dash
-# # import dash_core_components as dcc
-# # import dash_html_components as html
-# # import PlaylistRetriever as pl
-#
-# # import dash
-# # import dash_bootstrap_components as dbc
-
-"""
-Dash port of Shiny telephones by region example:
-https://shiny.rstudio.com/gallery/telephones-by-region.html
-"""
 import dash
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
@@ -89,13 +75,22 @@ row2_form= dbc.FormGroup(
             dbc.Input(
                 type="email", id="example-email-row", placeholder="Enter email"
             ),
-            width=10,
+            width=12,
         ),
+    dbc.Label("Select Playlist Profiles to Include", html_for="example-email-row", width=12),
+        dbc.Col(dcc.Checklist(id = 'pl_checklist',
+    options=[
+        {'label': 'New York City', 'value': 'NYC'},
+        {'label': 'Montréal', 'value': 'MTL'},
+        {'label': 'San Francisco', 'value': 'SF'}
+    ],
+    value=['NYC', 'MTL']
+),width = 8)
     ],
     row=True,
 )
 
-row2 = dbc.Row(dbc.Col([html.H3("Generate a New Playlist"),row2_form],width = 3))
+row2 = dbc.Row([dbc.Col([html.H3("Generate a New Playlist"),row2_form],width = 3),dbc.Col([dcc.Graph(id = 'table')],width=9)])
 
 content = html.Div([dbc.Row([dbc.Col(dcc.Graph(id="playlist_graph"),width = 6,style = {'background-color':'red'}),dbc.Col(dcc.Graph(id = "playlist_graph2"),width = 6)],style = {'background-color':'blue'}),row2], style = CONTENT_STYLE)
 #content = html.Div(id = 'page-content', style = CONTENT_STYLE)
@@ -140,8 +135,6 @@ style_done.update(style_todo)
 @app.callback(Output('playlist_data','data'),Input('checklist', 'data'),State('playlist_id_mappings','data'))
 def get_data(id_tup,mapping):
     print(mapping)
-    #map_back = mapping[1]
-    #new_ids = id_tup[2]
     print("Inside get data")
     print(id_tup)
     #print(new_ids)
@@ -211,8 +204,16 @@ def store_playlist_id_mapping(df, df2):
     if df is None:
         return dict(), dict()
     df = pd.read_json(df)
-    return pd.Series(df['playlist_id'].values, index=df['playlist']).to_dict(), pd.Series(df['playlist'].values, index=df['playlist_id']).to_dict()
+    dictionary = (pd.Series(df['playlist_id'].values, index=df['playlist']).to_dict(), pd.Series(df['playlist'].values, index=df['playlist_id']).to_dict())
+    return dictionary
 
+@app.callback(Output('pl_checklist','options'),Input('playlist_id_mappings','data'))
+def update_suggestion_checklist(dictionary):
+    names = dictionary[0]
+    to_return = []
+    for key, value in names.items():
+        to_return.append({'label':key,'value':value})
+    return to_return
 
 
 
@@ -276,10 +277,25 @@ def mark_done(done):
 def show_totals(done):
     count_all = len(done)
     count_done = len([d for d in done if d])
-    result = "{} of {} items completed".format(count_done, count_all)
-    if count_all:
-        result += " - {}%".format(int(100 * count_done / count_all))
+    result = "Remove {} of {} playlists".format(count_done, count_all)
+    # if count_all:
+    #     result += " - {}%".format(int(100 * count_done / count_all))
     return result
+
+@app.callback(Output('table','figure'),Input('playlist_data','data'))
+def suggest_playlist(dataframe):
+    df = pd.read_json(dataframe)
+    df.set_index("name",inplace=True)
+    print("suggest playlist")
+    print(df.columns)
+    return go.Figure(data=[go.Table(
+        header=dict(values=df.columns,
+                    fill_color='paleturquoise',
+                    align='left'),
+        cells=dict(values=[df[col] for col in df.columns],
+                   fill_color='lavender',
+                   align='left'))
+    ])
 
 
 if __name__ == "__main__":
