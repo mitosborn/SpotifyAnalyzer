@@ -21,7 +21,7 @@ SIDEBAR_STYLE = {
     "bottom": 0,
     "width": "16rem",
     "padding": "2rem 1rem",
-    "background-color": "#f8f9fa",
+    #"background-color": "#f8f9fa",
 }
 
 # the styles for the main content position it to the right of the sidebar and
@@ -69,22 +69,10 @@ sidebar = html.Div(
 )
 
 row2_form= dbc.FormGroup(
-    [
-        dbc.Label("Email", html_for="example-email-row", width=2),
-        dbc.Col(
-            dbc.Input(
-                type="email", id="example-email-row", placeholder="Enter email"
-            ),
-            width=12,
-        ),
-    dbc.Label("Select Playlist Profiles to Include", html_for="example-email-row", width=12),
+    [dbc.Label("Select Playlist Profiles to Include", html_for="example-email-row", width=12),
         dbc.Col(dcc.Checklist(id = 'pl_checklist',
-    options=[
-        {'label': 'New York City', 'value': 'NYC'},
-        {'label': 'Montréal', 'value': 'MTL'},
-        {'label': 'San Francisco', 'value': 'SF'}
-    ],
-    value=['NYC', 'MTL']
+    options=[],
+    value=[]
 ),width = 8)
     ],
     row=True,
@@ -92,7 +80,9 @@ row2_form= dbc.FormGroup(
 
 row2 = dbc.Row([dbc.Col([html.H3("Generate a New Playlist"),row2_form],width = 3),dbc.Col([dcc.Graph(id = 'table')],width=9)])
 
-content = html.Div([dbc.Row([dbc.Col(dcc.Graph(id="playlist_graph"),width = 6,style = {'background-color':'red'}),dbc.Col(dcc.Graph(id = "playlist_graph2"),width = 6)],style = {'background-color':'blue'}),row2], style = CONTENT_STYLE)
+#content = html.Div([dbc.Row([dbc.Col(dcc.Graph(id="playlist_graph"),width = 6,style = {'background-color':'red'}),dbc.Col(dcc.Graph(id = "playlist_graph2"),width = 6)],style = {'background-color':'blue'}),row2], style = CONTENT_STYLE)
+content = html.Div([dbc.Row([dbc.Col(dcc.Graph(id="playlist_graph"),width = 6),dbc.Col(dcc.Graph(id = "playlist_graph2"),width = 6)]),row2], style = CONTENT_STYLE)
+
 #content = html.Div(id = 'page-content', style = CONTENT_STYLE)
 
 data = dcc.Store(id='playlist_data')
@@ -116,7 +106,7 @@ def get_radar_graph(data):
     fig = Visualization.make_radar_chart(data)
     fig.update_layout(
         margin=dict(l=100, r=0, t=0, b=0),
-        paper_bgcolor="LightSteelBlue"
+        #paper_bgcolor="LightSteelBlue"
     )
     fig.update_layout(legend=dict(
         yanchor="top",
@@ -285,15 +275,20 @@ def show_totals(done):
 @app.callback(Output('table','figure'),Input('playlist_data','data'))
 def suggest_playlist(dataframe):
     df = pd.read_json(dataframe)
-    df.set_index("name",inplace=True)
+    #df.set_index("name",inplace=True)
+    df = df[['name','album', 'artists','danceability', 'energy', 'loudness',
+      'speechiness', 'acousticness', 'liveness',
+      'tempo',  'popularity', 'year', 'playlist'
+      ]]
+    print(df.columns)
     print("suggest playlist")
     print(df.columns)
     return go.Figure(data=[go.Table(
         header=dict(values=df.columns,
-                    fill_color='paleturquoise',
+                    #fill_color='paleturquoise',
                     align='left'),
         cells=dict(values=[df[col] for col in df.columns],
-                   fill_color='lavender',
+                   #fill_color='lavender',
                    align='left'))
     ])
 
